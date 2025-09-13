@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR-Tools – QR-Code erstellen & auslesen</title>
+  <meta name="description" content="Kostenlose QR-Tools: Links in QR-Codes umwandeln und QR-Codes aus Bildern oder per Kamera auslesen. Keine Registrierung.">
+  <link rel="canonical" href="https://example.com/qr-tools" />
+  <!-- Open Graph -->
+  <meta property="og:title" content="QR-Tools – QR-Code erstellen & auslesen">
+  <meta property="og:description" content="Kostenlose QR-Tools: Links in QR-Codes umwandeln und QR-Codes aus Bildern oder per Kamera auslesen.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://example.com/qr-tools">
+  <!-- JSON-LD Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "QR-Tools",
+    "url": "https://example.com/qr-tools",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Web",
+    "offers": {"@type": "Offer", "price": "0"}
+  }
+  </script>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- QR Code Generator -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-M6bJ8yZxE2qJShw9CwJpgg9N1B0tT2qZgXb8lQkC9E3bqT3E2qGzJm3m1oR3tN1Y2a2tYh9lK8x2l0kKx1G0AA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- ZXing for decoding (camera + images) -->
+  <script src="https://unpkg.com/@zxing/browser@1.0.2/umd/index.min.js"></script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <!-- Simple cookie/consent banner placeholder (integrate a real CMP for DSGVO!) -->
+  <div id="cookie-banner" class="hidden fixed inset-x-0 bottom-0 z-50 bg-white/90 backdrop-blur border-t border-slate-200">
+    <div class="max-w-5xl mx-auto p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <p class="text-sm">Wir verwenden Cookies für Betrieb, Analyse und ggf. Werbung. <a href="#" class="underline">Details</a></p>
+      <div class="flex gap-2">
+        <button id="btn-decline" class="px-3 py-1.5 rounded-xl border">Ablehnen</button>
+        <button id="btn-accept" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white">Alle akzeptieren</button>
+      </div>
+    </div>
+  </div>
+
+  <header class="border-b border-slate-200 bg-white sticky top-0 z-40">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-2xl bg-slate-900"></div>
+        <h1 class="text-xl font-bold">QR‑Tools</h1>
+      </div>
+      <nav class="hidden sm:flex gap-6 text-sm">
+        <a href="#generator" class="hover:underline">Erstellen</a>
+        <a href="#decoder" class="hover:underline">Auslesen</a>
+        <a href="#faq" class="hover:underline">FAQ</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-10">
+    <section class="mb-10 text-center">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">QR-Code erstellen & auslesen – kostenlos</h2>
+      <p class="mt-3 text-slate-600">Lokal im Browser. Keine Registrierung. DSGVO‑freundlich.</p>
+      <!-- AD SLOT TOP -->
+      <div id="ad-top" class="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500">Werbeplatz (728×90)</div>
+    </section>
+
+    <!-- Tabs -->
+    <div class="grid md:grid-cols-2 gap-8">
+      <!-- Generator -->
+      <section id="generator" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <h3 class="text-lg font-semibold">Link → QR-Code</h3>
+        <p class="text-sm text-slate-600 mt-1">Gib Text oder eine URL ein und lade den QR-Code als PNG herunter.</p>
+
+        <label for="qr-text" class="block mt-4 text-sm font-medium">Text/URL</label>
+        <textarea id="qr-text" class="mt-1 w-full rounded-xl border-slate-300 focus:ring-2 focus:ring-slate-900 p-3" rows="3" placeholder="https://dein-link.tld"></textarea>
+
+        <div class="mt-4 grid sm:grid-cols-3 gap-3 items-end">
+          <div>
+            <label class="text-sm">Größe (px)</label>
+            <input id="qr-size" type="number" value="256" min="128" max="1024" class="mt-1 w-full rounded-xl border-slate-300 p-2">
+          </div>
+          <div>
+            <label class="text-sm">Korrekturgrad</label>
+            <select id="qr-ecc" class="mt-1 w-full rounded-xl border-slate-300 p-2">
+              <option value="L">L (7%)</option>
+              <option value="M" selected>M (15%)</option>
+              <option value="Q">Q (25%)</option>
+              <option value="H">H (30%)</option>
+            </select>
+          </div>
+          <button id="btn-generate" class="h-10 rounded-xl bg-slate-900 text-white">QR-Code erstellen</button>
+        </div>
+
+        <div class="mt-6 flex flex-col sm:flex-row gap-6 sm:items-center">
+          <div id="qrcode" class="rounded-2xl bg-slate-100 p-4 w-[min(100%,320px)]"></div>
+          <div class="flex gap-3">
+            <button id="btn-download" class="px-4 py-2 rounded-xl border">Als PNG speichern</button>
+            <button id="btn-clear" class="px-4 py-2 rounded-xl border">Zurücksetzen</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Decoder -->
+      <section id="decoder" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <h3 class="text-lg font-semibold">QR-Code → Link/Text</h3>
+        <p class="text-sm text-slate-600 mt-1">Lade ein Bild hoch, zieh es per Drag & Drop rein, füge es aus der Zwischenablage ein (Strg/Cmd+V) oder nutze die Kamera. Perfekt für QR-Codes aus YouTube-Screenshots.</p>
+
+        <div class="mt-4 grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm">Bild hochladen</label>
+            <input id="file-input" type="file" accept="image/*" class="mt-1 w-full rounded-xl border p-2" />
+          </div>
+          <div class="flex items-end gap-2">
+            <button id="btn-start-camera" class="flex-1 h-10 rounded-xl border">Kamera starten</button>
+            <button id="btn-stop-camera" class="h-10 rounded-xl border">Stop</button>
+          </div>
+        </div>
+
+        <div id="dropzone" class="mt-4 w-full rounded-2xl border-2 border-dashed border-slate-300 p-6 text-center text-slate-500">
+          Screenshot hierher ziehen oder <span class="underline">einfügen (Strg/Cmd+V)</span>
+        </div>
+
+        <video id="video" class="mt-4 w-full rounded-2xl bg-slate-100" playsinline></video>
+        <div class="mt-4">
+          <label class="text-sm">Ergebnis</label>
+          <textarea id="decode-result" class="mt-1 w-full rounded-xl border-slate-300 p-3" rows="3" readonly></textarea>
+          <div class="mt-2 flex flex-wrap gap-3 items-center">
+            <a id="open-link" href="#" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white disabled:opacity-40">Link öffnen</a>
+            <button id="copy-result" class="px-3 py-1.5 rounded-xl border">Kopieren</button>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input id="auto-open" type="checkbox" class="rounded"> automatisch öffnen</label>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">Tipp: Falls der Code im Video klein/unscharf ist, pausiere in hoher Auflösung (1080p+), mach einen sauberen Frame‑Screenshot und versuche es erneut.</p>
+        </div>
+      </section>
+
+    <!-- FAQ / SEO Text -->
+    <section id="faq" class="mt-12 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h3 class="text-lg font-semibold">Häufige Fragen</h3>
+      <details class="mt-3">
+        <summary class="font-medium cursor-pointer">Werden meine Daten hochgeladen?</summary>
+        <p class="mt-2 text-sm text-slate-600">Nein, die Erstellung und das Auslesen passieren lokal im Browser. Für Kamera‑Nutzung wird eine Berechtigung benötigt, Videodaten verlassen das Gerät nicht.</p>
+      </details>
+      <details class="mt-3">
+        <summary class="font-medium cursor-pointer">Ist das DSGVO‑konform?</summary>
+        <p class="mt-2 text-sm text-slate-600">Ja, sofern Sie ein rechtssicheres Consent‑Banner integrieren, bevor Marketing‑ oder Analyse‑Cookies gesetzt werden (z. B. für Werbenetzwerke).</p>
+      </details>
+      <details class="mt-3">
+        <summary class="font-medium cursor-pointer">Darf ich die Seite kommerziell nutzen?</summary>
+        <p class="mt-2 text-sm text-slate-600">Ja. Fügen Sie z. B. Werbeplätze (oben/mittig/unten) hinzu oder bieten Sie Premium‑Funktionen wie dynamische QR‑Codes mit Klick‑Statistiken an.</p>
+      </details>
+    </section>
+
+    <!-- AD SLOT BOTTOM -->
+    <div id="ad-bottom" class="mt-10 rounded-2xl border border-dashed border-slate-300 p-6 text-slate-500 text-center">Werbeplatz (728×90)</div>
+  </main>
+
+  <footer class="border-t border-slate-200 py-10 text-sm">
+    <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p>© <span id="year"></span> QR‑Tools</p>
+      <div class="flex gap-4">
+        <a href="#" class="hover:underline">Impressum</a>
+        <a href="#" class="hover:underline">Datenschutz</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Cookie banner (demo only)
+    const banner = document.getElementById('cookie-banner');
+    const accept = document.getElementById('btn-accept');
+    const decline = document.getElementById('btn-decline');
+    const consentKey = 'qrtools-consent';
+    if (!localStorage.getItem(consentKey)) banner.classList.remove('hidden');
+    accept?.addEventListener('click', () => { localStorage.setItem(consentKey, 'all'); banner.classList.add('hidden'); });
+    decline?.addEventListener('click', () => { localStorage.setItem(consentKey, 'essential'); banner.classList.add('hidden'); });
+
+    // ----------- QR GENERATOR -----------
+    let qr;
+    const qrcodeEl = document.getElementById('qrcode');
+    const textEl = document.getElementById('qr-text');
+    const sizeEl = document.getElementById('qr-size');
+    const eccEl = document.getElementById('qr-ecc');
+
+    function generate() {
+      qrcodeEl.innerHTML = '';
+      const size = Math.max(128, Math.min(1024, parseInt(sizeEl.value || '256', 10)));
+      qr = new QRCode(qrcodeEl, {
+        text: textEl.value || 'https://example.com',
+        width: size,
+        height: size,
+        correctLevel: QRCode.CorrectLevel[eccEl.value]
+      });
+    }
+
+    document.getElementById('btn-generate').addEventListener('click', generate);
+    document.getElementById('btn-clear').addEventListener('click', () => { qrcodeEl.innerHTML = ''; textEl.value = ''; });
+    document.getElementById('btn-download').addEventListener('click', () => {
+      const img = qrcodeEl.querySelector('img') || qrcodeEl.querySelector('canvas');
+      if (!img) return;
+      const link = document.createElement('a');
+      link.download = 'qr-code.png';
+      link.href = img.src || img.toDataURL('image/png');
+      link.click();
+    });
+
+    // ----------- QR DECODER -----------
+    const { BrowserQRCodeReader } = ZXingBrowser;
+    const codeReader = new BrowserQRCodeReader();
+    const video = document.getElementById('video');
+    const fileInput = document.getElementById('file-input');
+    const dropzone = document.getElementById('dropzone');
+    const resultEl = document.getElementById('decode-result');
+    const openLink = document.getElementById('open-link');
+    const copyBtn = document.getElementById('copy-result');
+    const autoOpen = document.getElementById('auto-open');
+
+    // Helper: preprocess image (grayscale + simple threshold) to improve decoding from low‑contrast screenshots
+    async function preprocessFileToObjectURL(file) {
+      const img = await createImageBitmap(file);
+      const maxDim = 1600;
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      // grayscale + global threshold
+      let sum = 0;
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        const r = imgData.data[i], g = imgData.data[i+1], b = imgData.data[i+2];
+        const y = (r*299 + g*587 + b*114) / 1000;
+        imgData.data[i] = imgData.data[i+1] = imgData.data[i+2] = y;
+        sum += y;
+      }
+      const mean = sum / (imgData.data.length / 4);
+      const t = Math.max(64, Math.min(192, mean));
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        const y = imgData.data[i];
+        const v = y > t ? 255 : 0;
+        imgData.data[i] = imgData.data[i+1] = imgData.data[i+2] = v;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      return await new Promise(res => canvas.toBlob(b => res(URL.createObjectURL(b)), 'image/png'));
+    }
+
+    async function decodeFromFile(file) {
+      let tmpUrl;
+      try {
+        tmpUrl = await preprocessFileToObjectURL(file);
+        const res = await codeReader.decodeFromImageUrl(tmpUrl);
+        showResult(res.getText());
+      } catch (err) {
+        console.warn('Vorverarbeitung/Decode fehlgeschlagen, versuche Original:', err);
+        try {
+          const fallbackUrl = URL.createObjectURL(file);
+          const res2 = await codeReader.decodeFromImageUrl(fallbackUrl);
+          showResult(res2.getText());
+          URL.revokeObjectURL(fallbackUrl);
+        } catch (e2) {
+          showResult('Kein QR-Code erkannt.');
+          console.error(e2);
+        }
+      } finally {
+        if (tmpUrl) URL.revokeObjectURL(tmpUrl);
+      }
+    }
+
+    // Decode from file input
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await decodeFromFile(file);
+    });
+
+    // Drag & drop
+    ['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('border-slate-500'); }));
+    ;['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('border-slate-500'); }));
+    dropzone.addEventListener('drop', async (e) => {
+      const file = e.dataTransfer.files?.[0];
+      if (file) await decodeFromFile(file);
+    });
+
+    // Paste from clipboard (PNG/JPEG)
+    window.addEventListener('paste', async (e) => {
+      const item = [...(e.clipboardData?.items||[])].find(i => i.type.startsWith('image/'));
+      if (item) {
+        const file = item.getAsFile();
+        if (file) await decodeFromFile(file);
+      }
+    });
+
+    // Live camera decode
+    document.getElementById('btn-start-camera').addEventListener('click', async () => {
+      try {
+        const devices = await BrowserQRCodeReader.listVideoInputDevices();
+        const deviceId = devices?.[0]?.deviceId;
+        if (!deviceId) throw new Error('Keine Kamera gefunden');
+        await codeReader.decodeFromVideoDevice(deviceId, video, (result) => {
+          if (result) showResult(result.getText());
+        });
+      } catch (e) { alert(e.message || e); }
+    });
+
+    document.getElementById('btn-stop-camera').addEventListener('click', async () => {
+      try { await codeReader.reset(); } catch {}
+      if (video?.srcObject) {
+        const tracks = video.srcObject.getTracks();
+        tracks.forEach(t => t.stop());
+        video.srcObject = null;
+      }
+    });
+
+    function normalizeToUrl(text) {
+      if (!text) return '';
+      // handle missing protocol
+      if (/^www\./i.test(text)) return 'https://' + text;
+      return text;
+    }
+
+    function showResult(text) {
+      const cleaned = (text || '').trim();
+      resultEl.value = cleaned;
+      let urlCandidate = '';
+      try {
+        urlCandidate = normalizeToUrl(cleaned);
+        const url = new URL(urlCandidate);
+        openLink.href = url.toString();
+        openLink.removeAttribute('disabled');
+        if (autoOpen.checked) window.open(url.toString(), '_blank', 'noopener');
+      } catch {
+        openLink.href = '#';
+        openLink.setAttribute('disabled', 'true');
+      }
+    }
+
+    copyBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(resultEl.value); copyBtn.textContent = 'Kopiert!'; setTimeout(() => copyBtn.textContent = 'Kopieren', 1500); } catch {}
+    }); copyBtn.textContent = 'Kopiert!'; setTimeout(() => copyBtn.textContent = 'Kopieren', 1500); } catch {}
+    });
+  </script>
+
+  <!-- Example AdSense (placeholder). Replace with your publisher code and load only after consent. -->
+  <!--
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXX" crossorigin="anonymous"></script>
+  <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXX" data-ad-slot="YYYY" data-ad-format="auto" data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  -->
+  <script>
+    // --- Consent-gesteuertes Nachladen von AdSense (leichtgewichtig, separat) ---
+    (function(){
+      const consentKey = 'qrtools-consent';
+      const ADS_CLIENT = 'ca-pub-XXXX'; // TODO: deine Publisher-ID eintragen
+      const SLOT_TOP = 'SLOT_TOP';      // TODO: Slot-IDs aus AdSense eintragen
+      const SLOT_MID = 'SLOT_MIDDLE';
+      const SLOT_BOT = 'SLOT_BOTTOM';
+
+      function makeIns(el, slot, format = 'auto', fullWidth = true){
+        if(!el) return;
+        const ins = document.createElement('ins');
+        ins.className = 'adsbygoogle';
+        ins.style.display = 'block';
+        ins.setAttribute('data-ad-client', ADS_CLIENT);
+        if(slot) ins.setAttribute('data-ad-slot', slot);
+        ins.setAttribute('data-ad-format', format);
+        if(fullWidth) ins.setAttribute('data-full-width-responsive','true');
+        el.innerHTML = '';
+        el.appendChild(ins);
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      }
+
+      function loadAds(){
+        if(!ADS_CLIENT || ADS_CLIENT.includes('XXXX')) return; // nicht laden ohne echte ID
+        if(document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]')){
+          // Script schon vorhanden
+          makeIns(document.getElementById('ad-top'), SLOT_TOP);
+          makeIns(document.getElementById('ad-middle'), SLOT_MID);
+          makeIns(document.getElementById('ad-bottom'), SLOT_BOT);
+          return;
+        }
+        const s = document.createElement('script');
+        s.async = true;
+        s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADS_CLIENT}`;
+        s.crossOrigin = 'anonymous';
+        s.onload = function(){
+          makeIns(document.getElementById('ad-top'), SLOT_TOP);
+          makeIns(document.getElementById('ad-middle'), SLOT_MID);
+          makeIns(document.getElementById('ad-bottom'), SLOT_BOT);
+        };
+        document.head.appendChild(s);
+      }
+
+      function tryAutoLoad(){ if(localStorage.getItem(consentKey)==='all') loadAds(); }
+
+      // Bei bereits erteilter Einwilligung sofort laden
+      tryAutoLoad();
+      // Bei Klick auf "Alle akzeptieren" nachladen
+      document.getElementById('btn-accept')?.addEventListener('click', () => setTimeout(loadAds, 0));
+    })();
+  </script>
+</body>
+</html>
